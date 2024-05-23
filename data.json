@@ -1,0 +1,16 @@
+{
+  "person": {
+    "2a405c81-b76c-4e00-bec8-e05a30c0f8c3": {
+      "name": "Michel",
+      "age": 12,
+      "_id": "2a405c81-b76c-4e00-bec8-e05a30c0f8c3"
+    }
+  },
+  "cat": {
+    "1a3f0d98-3905-444e-ad42-78815221ca6c": {
+      "name": "boubou",
+      "age": 3,
+      "_id": "1a3f0d98-3905-444e-ad42-78815221ca6c"
+    }
+  }
+}
