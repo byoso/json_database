@@ -18,40 +18,33 @@ class JsonDBError(Exception):
 class JsonDB:
     """Interface with a json file"""
 
-    def __init__(self, file=None, autosave=False):
-        self.is_autosaving = autosave
+    def __init__(self, file=None):
+        self.is_loaded = False
         self.file = file
         self.tables = {}
-        self._relations = {}
 
         if os.path.exists(self.file):
             self.load()
+        self.is_loaded = True
 
     def __repr__(self):
         table_count = len(self.tables)
         return f"<JsonDB({self.file}) tables: {table_count} >"
 
-    def _autosave(self):
-        """Save the database if autosave is enabled"""
-        if self.is_autosaving:
-            self.save()
 
     def table(self, name):
         if name not in self.tables:
             self.tables[name] = Table(name, self)
-            self._autosave()
-            return self.tables[name]
-        else:
-            return self.tables[name]
+        return self.tables[name]
 
     def save(self):
         if self.file is None:
             return
         data = {}
-        for table in self.tables:
-            data[table] = {}
-            for id in self.tables[table].data:
-                data[table][id] = self.tables[table].data[id].data
+        for table_name in self.tables:
+            data[table_name] = {}
+            for id in self.tables[table_name].data:
+                data[table_name][id] = self.tables[table_name].data[id]
         with open(self.file, 'w') as file:
             json.dump(data, file, indent=2)
 
@@ -63,8 +56,8 @@ class JsonDB:
                 data = json.load(file)
             for table_name in data:
                 new_table = self.table(table_name)
-                for id in data[table_name]:
-                    new_table.add(data[table_name][id], id)
+                for pk in data[table_name]:
+                    new_table.add(data[table_name][pk])
 
     def display(self):
         tables_count = len(self.tables)
@@ -83,14 +76,12 @@ class JsonDB:
         """Delete a table and all its items"""
         if table_name in self.tables:
             del self.tables[table_name]
-            self._autosave()
 
     def delete(self):
         """Delete the database file"""
         if os.path.exists(self.file):
             os.remove(self.file)
             self.tables = {}
-            self._autosave()
 
 
 class Table:
@@ -99,19 +90,17 @@ class Table:
         self.database = db
         self.name = name
         self.data = {}
+        self.relations = {}
 
     def __repr__(self):
         return f"<{self.name} - objects in table: {len(self.data)} >"
 
-    def _autosave(self):
-        if self.database.is_autosaving:
-            self.database.save()
-
-    def add(self, input_data: dict, id=None):
+    def add(self, input_data: dict):
         """Add an item to the table"""
-        item = Item(input_data, self, id=id)
-        self.data[item.id] = item
-        self._autosave()
+        print("adding : ", input_data)
+        item = Item(input_data, self)
+        print(item)
+        self.data[item._id] = item._json()
         return item
 
     def all(self):
@@ -139,7 +128,7 @@ class Table:
         if len(self.data) == 0:
             return None
         for id in self.data:
-            return self.data[id].data
+            return Item(self.data[id], self)
 
     def first_object(self):
         """Returns the first item of the table or None if the table is empty"""
@@ -202,54 +191,48 @@ class Table:
                 continue
         for item in to_delete:
             item.delete()
-        self._autosave()
 
 
 class Item:
-    def __init__(self, data, table, id=None):
-        self.id = id
-        if id is None:
-            self.id = str(uuid.uuid4())
-        self.table = table
-        self.data = data
-        self.data['_id'] = self.id
+    def __init__(self, data, table):
+        self.__table = table
+        self.__attrs = ['_id']
+        self._set_values(data)
+        self.__table.data[self._id] = self._json()
 
     def __repr__(self):
-        return f"<{self.id}: {self.data}>"
+        return f"<Item {self._id} in {self.__table}>"
 
-    def _autosave(self):
-        if self.table.database.is_autosaving:
-            self.table.database.save()
-
-    def set(self, *args: tuple):
-        """args are tuples of (key, value)"""
-        for arg in args:
-            if not type(arg) is tuple:
-                raise JsonDBError('expected argument type is tuple')
-            self.data[arg[0]] = arg[1]
-        self._autosave()
+    def _set_values(self, dico: dict):
+        for k, v in dico.items():
+            if k == '_id':
+                self._id = v
+            if k not in self.__attrs:
+                self.__attrs.append(k)
+                setattr(self, k, v)
+        if not hasattr(self, '_id'):
+            self._id = str(uuid.uuid4())
         return self
 
-    def del_attr(self, *args: str):
-        for arg in args:
-            if not type(arg) is str:
-                raise JsonDBError('expected argument type is str')
-            if arg in self.data:
-                del self.data[arg]
-                self._autosave()
-        return self
+    def _json(self):
+        data = {}
+        for attr in self.__attrs:
+            data[attr] = getattr(self, attr)
+        return data
 
-    def delete(self):
-        del self.table.data[self.id]
-        self._autosave()
+    def __del__(self):
+        del self.__table.data[self._id]
 
 
 def set_relation(table_a: Table, related_name_to_a: str, relation: str, table_b: Table, related_name_to_b: str):
-    db = table_a.database
     if relation == 'mto' or 'many_to_one':
-        db._relations[table_a.name] = {
-                'related_name': related_name_to_a,
-                'relation': relation,
-                'table': table_b.name,
-                'related_name_to_b': related_name_to_b
-            }
+        table_a.relations[table_b.name] = {
+            'relation': 'mto',
+            'to_table': table_b,
+            'related_name': related_name_to_b
+        }
+        table_b.relations[table_a.name] = {
+            'relation': 'otm',
+            'to_table': table_a,
+            'related_name': related_name_to_a
+        }

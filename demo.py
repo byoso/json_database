@@ -3,25 +3,28 @@
 
 from jsondb import JsonDB, set_relation
 
-db = JsonDB(
-    "data.json",
-    autosave=True
-    )
+db = JsonDB("data.json")
 
-db.delete()
+# db.delete()
 
 Person = db.table("person")
 Cat = db.table("cat")
 
-set_relation(Cat, 'cats', 'mto', Person, 'owner')
 
-object1 = Person.add({"name": "Michel", "age": 12})
-object2 = Cat.add({"name": "boubou", "age": 3})
+# person = Person.add({"name": "Michel", "age": 12})
+# cat = Cat.add({"name": "boubou", "age": 3})
+cat2 = Cat.add({"name": "Colo", "age": 2})
 
-# id = object1.id
 
-person = Person.first()
-print(person)
-person = Person.first_object()
-print(person.data)
-print(db)
+# print(db.tables)
+# print(Cat.data)
+
+# db.save()
+
+# person = Person.first_object()
+# print(person.data)
+# print(db)
+
+
+# print(Person.relations)
+# print(Cat.relations)
